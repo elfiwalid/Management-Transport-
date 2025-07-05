@@ -1,15 +1,14 @@
-
 server:
-  port: 8093
+  port: 8090
 
 spring:
   application:
-    name: service-assurance
+    name: service-admin
   config:
     import: optional:configserver:http://localhost:8888
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5433/service_sinistre
+    url: jdbc:postgresql://localhost:5433/service_admin
     username: postgres
     password: 0000
 
