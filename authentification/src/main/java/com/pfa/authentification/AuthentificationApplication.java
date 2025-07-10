@@ -1,13 +1,13 @@
-package com.pfa.service_sinistre;
+package com.pfa.authentification;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class ServiceSinistreApplication {
+public class AuthentificationApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(ServiceSinistreApplication.class, args);
+		SpringApplication.run(AuthentificationApplication.class, args);
 	}
 
 }
