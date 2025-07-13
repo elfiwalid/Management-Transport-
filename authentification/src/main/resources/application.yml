@@ -1,5 +1,5 @@
 server:
-  port: 8093  # Port différent pour éviter les conflits
+  port: 8091
 
 spring:
   application:
@@ -8,9 +8,9 @@ spring:
     import: optional:configserver:http://localhost:8888
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5433/service_authentification
+    url: jdbc:postgresql://localhost:5433/authentification
     username: postgres
-    password: 0000
+    password: "0000"
   jpa:
     hibernate:
       ddl-auto: update
@@ -24,7 +24,7 @@ spring:
 # Configuration JWT
 jwt:
   secret: mySecretKey123456789012345678901234567890
-  expiration: 86400000  # 24 heures en millisecondes
+  expiration: 86400000
 
 eureka:
   client:

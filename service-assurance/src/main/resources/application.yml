@@ -1,5 +1,5 @@
 server:
-  port: 8091
+  port: 8093
 
 spring:
   application:
@@ -10,7 +10,7 @@ spring:
     driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5433/service_assurance
     username: postgres
-    password: 0000
+    password: "0000"
 
   jpa:
     hibernate:

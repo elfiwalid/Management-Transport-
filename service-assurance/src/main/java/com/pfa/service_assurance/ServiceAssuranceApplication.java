@@ -8,7 +8,7 @@ public class ServiceAssuranceApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(ServiceAssuranceApplication.class, args);
-		System.out.println("youssef");
+
 	}
 
 }
