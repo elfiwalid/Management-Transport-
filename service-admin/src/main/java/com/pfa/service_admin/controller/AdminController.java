@@ -16,9 +16,9 @@ public class AdminController {
     @Autowired
     private RestTemplate restTemplate;
 
-    private static final String SERVICE_ASSURANCE_URL = "http://localhost:8091";
-    private static final String SERVICE_SINISTRE_URL = "http://localhost:8094";
-    private static final String SERVICE_AUTH_URL = "http://localhost:8093";
+    private static final String SERVICE_ASSURANCE_URL = "http://service-assurance";
+    private static final String SERVICE_SINISTRE_URL = "http://service-sinistre";
+    private static final String SERVICE_AUTH_URL = "http://authentification";
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardDTO> getDashboard() {

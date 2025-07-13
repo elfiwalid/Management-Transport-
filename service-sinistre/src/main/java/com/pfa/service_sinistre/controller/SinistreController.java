@@ -23,7 +23,7 @@ public class SinistreController {
     private RestTemplate restTemplate;
 
     // URL du service assurance
-    private static final String SERVICE_ASSURANCE_URL = "http://localhost:8094";
+    private static final String SERVICE_ASSURANCE_URL = "http://service-assurance";
 
     @GetMapping
     public List<Sinistre> getAllSinistres() {

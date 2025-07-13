@@ -7,9 +7,11 @@ import com.pfa.authentification.dto.AuthResponse;
 import com.pfa.authentification.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 import java.util.Optional;
+
 
 @RestController
 @RequestMapping("/auth")
@@ -19,10 +21,12 @@ public class AuthController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder; // ✅ Ajouter
+
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@RequestBody User user) {
         try {
-            // Vérifications basiques
             if (userRepository.existsByUsername(user.getUsername())) {
                 return ResponseEntity.badRequest()
                         .body(new AuthResponse(null, null, null, "Username déjà utilisé"));
@@ -33,12 +37,10 @@ public class AuthController {
                         .body(new AuthResponse(null, null, null, "Email déjà utilisé"));
             }
 
-            // Simulation du hashage du mot de passe (en production, utiliser BCrypt)
-            user.setPassword("hashed_" + user.getPassword());
+            // ✅ UTILISER BCrypt au lieu de "hashed_"
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
 
             User savedUser = userRepository.save(user);
-
-            // Génération d'un token simple (en production, utiliser JWT)
             String token = "token_" + UUID.randomUUID().toString();
 
             return ResponseEntity.ok(new AuthResponse(
@@ -65,14 +67,12 @@ public class AuthController {
 
             User user = userOpt.get();
 
-            // Vérification simple du mot de passe (en production, utiliser BCrypt)
-            String hashedPassword = "hashed_" + loginRequest.getPassword();
-            if (!user.getPassword().equals(hashedPassword)) {
+            // ✅ UTILISER BCrypt pour vérifier le mot de passe
+            if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
                 return ResponseEntity.badRequest()
                         .body(new AuthResponse(null, null, null, "Mot de passe incorrect"));
             }
 
-            // Génération d'un token simple
             String token = "token_" + UUID.randomUUID().toString();
 
             return ResponseEntity.ok(new AuthResponse(
