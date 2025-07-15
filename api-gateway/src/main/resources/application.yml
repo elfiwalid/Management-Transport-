@@ -1,0 +1,55 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  config:
+    import: optional:configserver:http://localhost:8888
+  cloud:
+    config:
+      enabled: false  # Désactive le config server pour simplifier
+    gateway:
+      routes:
+        # Service Authentification
+        - id: auth-service
+          uri: lb://service-authentification
+          predicates:
+            - Path=/auth/**
+
+        # Service Assurance
+        - id: assurance-service
+          uri: lb://service-assurance
+          predicates:
+            - Path=/clients/**
+
+        # Service Sinistre
+        - id: sinistre-service
+          uri: lb://service-sinistre
+          predicates:
+            - Path=/sinistres/**
+
+        # Service Admin
+        - id: admin-service
+          uri: lb://service-admin
+          predicates:
+            - Path=/admin/**
+
+      # CORS simple
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+
+# Eureka Client
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+# Logs
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
