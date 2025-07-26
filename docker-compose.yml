@@ -1,7 +1,6 @@
-# docker-compose.yml - Version simplifiée pour éviter les problèmes de health check
 services:
   # ==============================================
-  # Base de données PostgreSQL
+  # PostgreSQL Database
   # ==============================================
   postgres:
     image: postgres:15
@@ -19,21 +18,6 @@ services:
       - microservices-network
 
   # ==============================================
-  # Config Server
-  # ==============================================
-  config-server:
-    build:
-      context: ./config-server
-      dockerfile: Dockerfile
-    container_name: config-server
-    ports:
-      - "8888:8888"
-    networks:
-      - microservices-network
-    depends_on:
-      - postgres
-
-  # ==============================================
   # Discovery Service (Eureka Server)
   # ==============================================
   discovery:
@@ -43,12 +27,9 @@ services:
     container_name: discovery-service
     ports:
       - "8761:8761"
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
     networks:
       - microservices-network
-    depends_on:
-      - config-server
+    restart: always
 
   # ==============================================
   # Service Authentification
@@ -61,16 +42,14 @@ services:
     ports:
       - "8091:8091"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/authentification
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=0000
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery:8761/eureka/
     networks:
       - microservices-network
     depends_on:
       - postgres
       - discovery
+    restart: always
 
   # ==============================================
   # Service Assurance
@@ -83,16 +62,14 @@ services:
     ports:
       - "8093:8093"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/service_assurance
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=0000
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery:8761/eureka/
     networks:
       - microservices-network
     depends_on:
       - postgres
       - discovery
+    restart: always
 
   # ==============================================
   # Service Sinistre
@@ -105,10 +82,7 @@ services:
     ports:
       - "8094:8094"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/service_sinistre
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=0000
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery:8761/eureka/
     networks:
       - microservices-network
@@ -116,6 +90,7 @@ services:
       - postgres
       - discovery
       - service-assurance
+    restart: always
 
   # ==============================================
   # Service Admin
@@ -128,18 +103,14 @@ services:
     ports:
       - "8092:8092"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/service_admin
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=0000
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery:8761/eureka/
     networks:
       - microservices-network
     depends_on:
       - postgres
       - discovery
-      - service-assurance
-      - service-sinistre
+    restart: always
 
   # ==============================================
   # API Gateway
@@ -152,7 +123,6 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery:8761/eureka/
     networks:
       - microservices-network
@@ -162,16 +132,14 @@ services:
       - service-assurance
       - service-sinistre
       - service-admin
+    restart: always
 
 # ==============================================
-# Réseaux
+# Networks & Volumes
 # ==============================================
 networks:
   microservices-network:
     driver: bridge
 
-# ==============================================
-# Volumes
-# ==============================================
 volumes:
   postgres_data:
