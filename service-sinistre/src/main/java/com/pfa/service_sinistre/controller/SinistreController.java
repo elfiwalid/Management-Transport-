@@ -23,7 +23,8 @@ public class SinistreController {
     private RestTemplate restTemplate;
 
     // URL du service assurance
-    private static final String SERVICE_ASSURANCE_URL = "http://service-assurance";
+    private static final String API_GATEWAY = "http://192.168.100.1:8080";
+    private static final String SERVICE_AUTH_URL = API_GATEWAY + "/auth";
 
     @GetMapping
     public List<Sinistre> getAllSinistres() {
@@ -112,7 +113,7 @@ public class SinistreController {
     // Méthode privée pour enrichir le sinistre avec les données du client via REST
     private void enrichirAvecDonneesClient(Sinistre sinistre) {
         try {
-            String url = SERVICE_ASSURANCE_URL + "/clients/" + sinistre.getClientId();
+            String url = SERVICE_AUTH_URL  + sinistre.getClientId();
             ClientDTO client = restTemplate.getForObject(url, ClientDTO.class);
             if (client != null) {
                 sinistre.setClientNom(client.getNom() + " " + client.getPrenom());
@@ -131,7 +132,7 @@ public class SinistreController {
     // Méthode pour vérifier l'existence du client
     private boolean clientExists(Long clientId) {
         try {
-            String url = SERVICE_ASSURANCE_URL + "/clients/" + clientId;
+            String url = SERVICE_AUTH_URL  + clientId;
             ResponseEntity<ClientDTO> response = restTemplate.getForEntity(url, ClientDTO.class);
             return response.getStatusCode().is2xxSuccessful() && response.getBody() != null;
         } catch (Exception e) {

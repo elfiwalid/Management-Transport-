@@ -1,8 +1,6 @@
-package com.pfa.service_sinistre.dto;
+package com.pfa.service_assurance.DTO;
 
 import lombok.Data;
-
-
 
 @Data
 public class ClientDTO {

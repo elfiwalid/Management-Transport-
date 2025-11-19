@@ -16,90 +16,53 @@ public class AdminController {
     @Autowired
     private RestTemplate restTemplate;
 
-    private static final String SERVICE_ASSURANCE_URL = "http://service-assurance";
-    private static final String SERVICE_SINISTRE_URL = "http://service-sinistre";
-    private static final String SERVICE_AUTH_URL = "http://authentification";
+    private static final String GATEWAY_URL = "http://192.168.100.1:8080";
+
+    private static final String SERVICE_ASSURANCE_URL = GATEWAY_URL + "/contracts";
+    private static final String SERVICE_SINISTRE_URL   = GATEWAY_URL + "/sinistres";
+    private static final String SERVICE_AUTH_URL       = GATEWAY_URL + "/auth";
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardDTO> getDashboard() {
         try {
-            // Récupérer les statistiques des différents services
             Long totalClients = getTotalClients();
             Map<String, Long> statsSinistres = getStatistiquesSinistres();
 
-            DashboardDTO dashboard = new DashboardDTO(
-                    totalClients,
-                    statsSinistres.get("total"),
-                    statsSinistres.get("enAttente"),
-                    statsSinistres.get("valides"),
-                    "Services opérationnels"
+            return ResponseEntity.ok(
+                    new DashboardDTO(
+                            totalClients,
+                            statsSinistres.get("total"),
+                            statsSinistres.get("enAttente"),
+                            statsSinistres.get("valides"),
+                            "Services opérationnels"
+                    )
             );
-
-            return ResponseEntity.ok(dashboard);
-        } catch (Exception e) {
-            DashboardDTO errorDashboard = new DashboardDTO(0L, 0L, 0L, 0L, "Erreur de communication avec les services");
-            return ResponseEntity.ok(errorDashboard);
+        } catch (Exception ex) {
+            return ResponseEntity.ok(new DashboardDTO(0L, 0L, 0L, 0L, "Erreur de communication"));
         }
-    }
-
-    @GetMapping("/statistiques")
-    public ResponseEntity<Map<String, Object>> getStatistiques() {
-        Map<String, Object> stats = new HashMap<>();
-
-        try {
-            stats.put("totalClients", getTotalClients());
-            stats.put("statistiquesSinistres", getStatistiquesSinistres());
-            stats.put("servicesStatus", getServicesStatus());
-            stats.put("timestamp", System.currentTimeMillis());
-        } catch (Exception e) {
-            stats.put("error", "Erreur lors de la récupération des statistiques");
-            stats.put("details", e.getMessage());
-        }
-
-        return ResponseEntity.ok(stats);
-    }
-
-    @GetMapping("/health")
-    public ResponseEntity<String> health() {
-        return ResponseEntity.ok("Service Admin is running");
     }
 
     @GetMapping("/services/status")
     public ResponseEntity<Map<String, String>> getServicesStatus() {
         Map<String, String> status = new HashMap<>();
-
-        // Vérifier le service assurance
-        try {
-            ResponseEntity<String> response = restTemplate.getForEntity(SERVICE_ASSURANCE_URL + "/clients/health", String.class);
-            status.put("service-assurance", response.getStatusCode().is2xxSuccessful() ? "UP" : "DOWN");
-        } catch (Exception e) {
-            status.put("service-assurance", "DOWN");
-        }
-
-        // Vérifier le service sinistre
-        try {
-            ResponseEntity<String> response = restTemplate.getForEntity(SERVICE_SINISTRE_URL + "/sinistres/health", String.class);
-            status.put("service-sinistre", response.getStatusCode().is2xxSuccessful() ? "UP" : "DOWN");
-        } catch (Exception e) {
-            status.put("service-sinistre", "DOWN");
-        }
-
-        // Vérifier le service auth
-        try {
-            ResponseEntity<String> response = restTemplate.getForEntity(SERVICE_AUTH_URL + "/auth/health", String.class);
-            status.put("service-auth", response.getStatusCode().is2xxSuccessful() ? "UP" : "DOWN");
-        } catch (Exception e) {
-            status.put("service-auth", "DOWN");
-        }
-
+        status.put("assurance", checkService(SERVICE_ASSURANCE_URL + "/actuator/health"));
+        status.put("sinistre", checkService(SERVICE_SINISTRE_URL + "/actuator/health"));
+        status.put("auth", checkService(SERVICE_AUTH_URL + "/actuator/health"));
         return ResponseEntity.ok(status);
     }
 
-    // Méthodes privées pour récupérer les données via REST
+    private String checkService(String url) {
+        try {
+            var res = restTemplate.getForEntity(url, String.class);
+            return res.getStatusCode().is2xxSuccessful() ? "UP" : "DOWN";
+        } catch (Exception e) {
+            return "DOWN";
+        }
+    }
+
     private Long getTotalClients() {
         try {
-            String url = SERVICE_ASSURANCE_URL + "/clients";
-            Object[] clients = restTemplate.getForObject(url, Object[].class);
+            Object[] clients = restTemplate.getForObject(SERVICE_ASSURANCE_URL, Object[].class);
             return clients != null ? (long) clients.length : 0L;
         } catch (Exception e) {
             return 0L;
@@ -108,24 +71,18 @@ public class AdminController {
 
     private Map<String, Long> getStatistiquesSinistres() {
         Map<String, Long> stats = new HashMap<>();
-        stats.put("total", 0L);
-        stats.put("enAttente", 0L);
-        stats.put("valides", 0L);
-
         try {
-            String url = SERVICE_SINISTRE_URL + "/sinistres";
-            Object[] sinistres = restTemplate.getForObject(url, Object[].class);
+            Object[] sinistres = restTemplate.getForObject(SERVICE_SINISTRE_URL, Object[].class);
+            long total = sinistres != null ? sinistres.length : 0;
 
-            if (sinistres != null) {
-                stats.put("total", (long) sinistres.length);
-                // Pour une version simple, on simule des statistiques
-                stats.put("enAttente", (long) (sinistres.length * 0.3)); // 30% en attente
-                stats.put("valides", (long) (sinistres.length * 0.5));   // 50% validés
-            }
+            stats.put("total", total);
+            stats.put("enAttente", (long) (total * 0.3));
+            stats.put("valides", (long) (total * 0.5));
         } catch (Exception e) {
-            // Garde les valeurs par défaut (0)
+            stats.put("total", 0L);
+            stats.put("enAttente", 0L);
+            stats.put("valides", 0L);
         }
-
         return stats;
     }
 }
