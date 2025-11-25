@@ -24,13 +24,16 @@ public class ContractController {
     @Autowired
     RestTemplate restTemplate;
 
-    private static final String API_GATEWAY = "http://http://192.168.100.1:8080";
+    private static final String API_GATEWAY = "http://192.168.100.1:8080";
     private static final String SERVICE_AUTH_URL = API_GATEWAY + "/auth";
 
-    @PostMapping("create")
+    @PostMapping("/create")
     public ResponseEntity<?> create(@RequestBody Contract c) {
+        c.setId(null); // on ignore l'id envoyé par le client
         return ResponseEntity.ok(repository.save(c));
     }
+
+
 
     @GetMapping()
     public List<Contract> getAll() {

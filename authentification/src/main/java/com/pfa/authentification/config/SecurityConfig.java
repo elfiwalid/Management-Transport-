@@ -3,12 +3,10 @@ package com.pfa.authentification.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.cors.CorsConfiguration;
-
-import java.util.List;
 
 @Configuration
 public class SecurityConfig {
@@ -23,16 +21,10 @@ public class SecurityConfig {
 
         http
                 // Désactive CSRF
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
 
-                // Configure CORS globalement
-                .cors(cors -> cors.configurationSource(request -> {
-                    CorsConfiguration config = new CorsConfiguration();
-                    config.setAllowedOrigins(List.of("*")); // toutes origines
-                    config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
-                    config.setAllowedHeaders(List.of("*"));
-                    return config;
-                }))
+                // ❌ Désactiver CORS côté microservice
+                .cors(AbstractHttpConfigurer::disable)
 
                 // Autorisation des requêtes
                 .authorizeHttpRequests(auth -> auth
