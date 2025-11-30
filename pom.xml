@@ -13,11 +13,11 @@
 	</parent>
 
 	<groupId>com.pfa</groupId>
-	<artifactId>gestion-sinistres-parent</artifactId>
+	<artifactId>Gestion_transport_public</artifactId>
 	<version>1.0.0</version>
 	<packaging>pom</packaging>
-	<name>Gestion Sinistres - Parent</name>
-	<description>Projet parent pour la gestion des sinistres</description>
+	<name>Gestion Transport Public - Parent</name>
+	<description>Projet parent pour la gestion des Transports Public</description>
 
 	<properties>
 		<java.version>17</java.version>
@@ -29,9 +29,9 @@
 	<modules>
 		<module>Discovery</module>
 		<module>api-gateway</module>
-		<module>service-admin</module>
-		<module>service-assurance</module>
-		<module>service-sinistre</module>
+		<module>vehicle-service</module>
+		<module>schedule-service</module>
+		<module>driver-service</module>
 		<module>authentification</module>
 		<module>config-server</module>
 	</modules>

@@ -1,10 +1,10 @@
 server:
-  port: 8097
+  port: 8092
 
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/tms_authentification
+    url: jdbc:postgresql://localhost:5432/schedule_service
     username: postgres
     password: walid1234@
   jpa:

@@ -5,22 +5,22 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: auth-service
-          uri: lb://service-authentification
+        - id: authentification
+          uri: lb://authentification
           predicates:
-            - Path=/auth/**
-        - id: assurance-service
-          uri: lb://service-assurance
+          - Path=/authentification/**
+        - id: schedule-service
+          uri: lb://schedule-service
           predicates:
-            - Path=/clients/**
-        - id: sinistre-service
-          uri: lb://service-sinistre
+            - Path=/schedule/**
+        - id: driver-service
+          uri: lb://driver-service
           predicates:
-            - Path=/sinistres/**
-        - id: admin-service
-          uri: lb://service-admin.yml
+            - Path=/driver/**
+        - id: vehicle-service
+          uri: lb://vehicle-service.yml
           predicates:
-            - Path=/admin/**
+            - Path=/vehicle/**
       globalcors:
         cors-configurations:
           '[/**]':
