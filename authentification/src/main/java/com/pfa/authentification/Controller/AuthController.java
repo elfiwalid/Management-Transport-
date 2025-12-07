@@ -10,9 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/authentification")
 @RequiredArgsConstructor
-@CrossOrigin // si besoin d'appeler depuis front
 public class AuthController {
 
     private final AuthService authService;
