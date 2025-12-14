@@ -1,23 +1,27 @@
 package com.pfa.service_admin.Service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pfa.service_admin.DTO.CreateVehicleRequest;
-import com.pfa.service_admin.DTO.UpdatePositionRequest;
-import com.pfa.service_admin.DTO.VehicleResponse;
+import com.pfa.service_admin.Client.ScheduleClient;
+import com.pfa.service_admin.Client.StopClient;
+import com.pfa.service_admin.DTO.*;
 import com.pfa.service_admin.Entity.SignalState;
 import com.pfa.service_admin.Entity.Vehicle;
 import com.pfa.service_admin.Entity.VehicleStatus;
 import com.pfa.service_admin.Repository.VehicleRepository;
 import com.pfa.service_admin.Service.VehicleService;
 import com.pfa.service_admin.kafka.VehiclePositionEvent;
+import com.pfa.service_admin.simulation.TripSimulationState;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Service
 @RequiredArgsConstructor
@@ -25,7 +29,9 @@ import java.util.List;
 public class VehicleServiceImpl implements VehicleService {
 
     private final VehicleRepository vehicleRepository;
-
+    private final ConcurrentMap<Long, TripSimulationState> simulations = new ConcurrentHashMap<>();
+    private final StopClient stopClient;
+    private final ScheduleClient scheduleClient;
     // 🔹 Ajout pour Kafka
     private final KafkaTemplate<String, String> vehicleKafkaTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -91,6 +97,34 @@ public class VehicleServiceImpl implements VehicleService {
         return toResponse(updated);
     }
 
+    @Override
+    public void startTripSimulation(Long vehicleId, StartTripSimulationRequest req) {
+        Vehicle v = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new RuntimeException("Véhicule introuvable"));
+
+        int planned = (req.getPlannedDurationMin() != null) ? req.getPlannedDurationMin() : 50;
+        double traffic = (req.getTrafficFactor() != null) ? req.getTrafficFactor() : 1.15; // petit retard réaliste
+
+        simulations.put(vehicleId, TripSimulationState.builder()
+                .vehicleId(vehicleId)
+                .lineId(req.getLineId() != null ? req.getLineId() : v.getLineId())
+                .startLat(req.getStartLat())
+                .startLon(req.getStartLon())
+                .endLat(req.getEndLat())
+                .endLon(req.getEndLon())
+                .startedAt(Instant.now())
+                .plannedDurationMin(planned)
+                .trafficFactor(traffic)
+                .finished(false)
+                .build());
+    }
+
+    @Override
+    public void stopTripSimulation(Long vehicleId) {
+        simulations.remove(vehicleId);
+    }
+
+
     // --- Mapping Entity -> DTO ---
     private VehicleResponse toResponse(Vehicle v) {
         return VehicleResponse.builder()
@@ -105,6 +139,12 @@ public class VehicleServiceImpl implements VehicleService {
                 .lastPositionTime(v.getLastPositionTime())
                 .signalState(v.getSignalState())
                 .status(v.getStatus())
+                // ✅ trip mapping
+                .currentTripCode(v.getCurrentTripCode())
+                .currentServiceDate(v.getCurrentServiceDate())
+                .tripStartedAt(v.getTripStartedAt())
+                .tripStatus(v.getTripStatus())
+                .delayMinutes(v.getDelayMinutes())
                 .createdAt(v.getCreatedAt())
                 .updatedAt(v.getUpdatedAt())
                 .build();
@@ -114,7 +154,8 @@ public class VehicleServiceImpl implements VehicleService {
     private void publishVehiclePositionEvent(Vehicle v) {
         try {
             // Pour l’instant on simule un retard de 8 minutes (pour tester driver-service)
-            int delayMinutes = 8;
+            int delayMinutes = v.getDelayMinutes() != null ? v.getDelayMinutes() : 0;
+
 
             VehiclePositionEvent event = VehiclePositionEvent.builder()
                     .vehicleId(v.getId())
@@ -135,4 +176,142 @@ public class VehicleServiceImpl implements VehicleService {
             log.error("Erreur lors de l’envoi de l’événement Kafka vehicle.positions", e);
         }
     }
+
+
+    @Override
+    public Vehicle startTrip(Long vehicleId, StartTripRequest req) {
+
+        if (req.getTripCode() == null || req.getTripCode().isBlank() || req.getServiceDate() == null) {
+            throw new IllegalArgumentException("tripCode et serviceDate sont obligatoires");
+        }
+
+        Vehicle v = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new RuntimeException("Vehicle introuvable"));
+
+        // Empêcher 2 trips en même temps
+        if ("RUNNING".equalsIgnoreCase(v.getTripStatus())) {
+            throw new IllegalStateException("Ce véhicule a déjà un trip RUNNING");
+        }
+
+        // ✅ Vérifier que le trip existe dans schedule-service
+        List<PlannedStopTimeResponse> stops = scheduleClient.getTripStops(req.getTripCode(), req.getServiceDate());
+        if (stops == null || stops.isEmpty()) {
+            throw new IllegalArgumentException("Trip introuvable dans schedule-service: " + req.getTripCode());
+        }
+
+        // ✅ Lier le trip au véhicule
+        v.setCurrentTripCode(req.getTripCode());
+        v.setCurrentServiceDate(req.getServiceDate());
+        v.setTripStartedAt(Instant.now());
+        v.setTripStatus("RUNNING");
+
+        // Optionnel : status véhicule
+        v.setStatus(VehicleStatus.IN_SERVICE); // si tu l’as
+
+        v.setUpdatedAt(Instant.now());
+        return vehicleRepository.save(v);
+    }
+
+
+
+    private PlannedStopTimeResponse findExpectedStop(List<PlannedStopTimeResponse> stops) {
+        if (stops == null || stops.isEmpty()) return null;
+
+        // stops déjà triés normalement, sinon :
+        stops = stops.stream()
+                .sorted((a,b) -> Integer.compare(
+                        a.getStopSequence() == null ? 0 : a.getStopSequence(),
+                        b.getStopSequence() == null ? 0 : b.getStopSequence()
+                ))
+                .toList();
+
+        var now = java.time.LocalTime.now();
+
+        PlannedStopTimeResponse expected = stops.get(0);
+        for (PlannedStopTimeResponse s : stops) {
+            if (s.getPlannedArrivalTime() != null && !s.getPlannedArrivalTime().isAfter(now)) {
+                expected = s;
+            }
+        }
+        return expected;
+    }
+
+    private int simulateDelayMinutes() {
+        // retard réaliste 0..9
+        return (int) (Math.random() * 10);
+    }
+
+    @Scheduled(fixedRate = 10000) // 10 s
+    public void autoUpdateRunningTrips() {
+
+        List<Vehicle> runningVehicles =
+                vehicleRepository.findByTripStatusIgnoreCase("RUNNING");
+
+        if (runningVehicles.isEmpty()) return;
+
+        for (Vehicle v : runningVehicles) {
+            try {
+                if (v.getCurrentTripCode() == null || v.getCurrentServiceDate() == null) continue;
+
+                // 1) récupérer le planning du trip
+                List<PlannedStopTimeResponse> tripStops =
+                        scheduleClient.getTripStops(v.getCurrentTripCode(), v.getCurrentServiceDate());
+
+                if (tripStops == null || tripStops.isEmpty()) continue;
+
+                // 2) stop attendu maintenant
+                PlannedStopTimeResponse expected = findExpectedStop(tripStops);
+                if (expected == null) continue;
+
+                // 3) récupérer coords du stop (via stop-service chez schedule? ou local ?)
+                // 👉 IMPORTANT :
+                // ton schedule-service stocke stopId, mais vehicle-service n'a pas la latitude/longitude du stop.
+                // SOLUTION SIMPLE POUR TON MINI-PROJET :
+                // - soit tu ajoutes stop.lat/stop.lon dans schedule-service response
+                // - soit tu fais un StopClient vers schedule-service /schedule/stops/{id}
+                // On va faire le StopClient (propre).
+
+                StopResponse stop = stopClient.getStop(expected.getStopId());
+
+                // 4) simuler retard
+                int delay = simulateDelayMinutes();
+
+                // 5) update DB vehicle
+                v.setLatitude(stop.getLatitude());
+                v.setLongitude(stop.getLongitude());
+                v.setSpeed(20 + Math.random() * 20); // 20..40
+                v.setHeading(0 + Math.random() * 360);
+                v.setLastPositionTime(Instant.now());
+                v.setSignalState(SignalState.FRESH);
+                v.setDelayMinutes(delay);
+                v.setUpdatedAt(Instant.now());
+
+                Vehicle updated = vehicleRepository.save(v);
+
+                // 6) Kafka event
+                publishVehiclePositionEvent(updated);
+
+                // 7) fin du trip si dernier stop atteint (optionnel maintenant)
+                Integer maxSeq = tripStops.stream()
+                        .map(PlannedStopTimeResponse::getStopSequence)
+                        .filter(x -> x != null)
+                        .max(Integer::compareTo)
+                        .orElse(null);
+
+                if (maxSeq != null && expected.getStopSequence() != null
+                        && expected.getStopSequence().equals(maxSeq)) {
+                    // arrivé dernier stop
+                    updated.setTripStatus("FINISHED");
+                    updated.setUpdatedAt(Instant.now());
+                    vehicleRepository.save(updated);
+                }
+
+            } catch (Exception e) {
+                log.error("Erreur scheduler vehicle RUNNING id=" + v.getId(), e);
+            }
+        }
+    }
+
+
+
 }

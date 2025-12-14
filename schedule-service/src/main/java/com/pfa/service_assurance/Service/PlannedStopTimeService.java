@@ -1,6 +1,7 @@
 package com.pfa.service_assurance.Service;
 
 import com.pfa.service_assurance.DTO.CreatePlannedStopTimeRequest;
+import com.pfa.service_assurance.DTO.CreateTripStopsRequest;
 import com.pfa.service_assurance.DTO.PlannedStopTimeResponse;
 
 import java.time.LocalDate;
@@ -23,6 +24,9 @@ public interface PlannedStopTimeService {
 
     List<PlannedStopTimeResponse> getForLineAndStop(Long lineId, Long stopId, LocalDate date);
 
+    List<PlannedStopTimeResponse> createTripStops(CreateTripStopsRequest req);
+
+    List<PlannedStopTimeResponse> getTripStops(String tripCode, LocalDate date);
     List<PlannedStopTimeResponse> getNextDepartures(
             Long lineId,
             Long stopId,
@@ -32,4 +36,5 @@ public interface PlannedStopTimeService {
     );
 
     void delete(Long id);
+
 }

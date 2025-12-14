@@ -1,9 +1,11 @@
 package com.pfa.service_assurance.Service.impl;
 
 import com.pfa.service_assurance.DTO.CreatePlannedStopTimeRequest;
+import com.pfa.service_assurance.DTO.CreateTripStopsRequest;
 import com.pfa.service_assurance.DTO.PlannedStopTimeResponse;
 import com.pfa.service_assurance.Entity.PlannedStopTime;
 import com.pfa.service_assurance.Repository.PlannedStopTimeRepository;
+import com.pfa.service_assurance.Repository.StopRepository;
 import com.pfa.service_assurance.Service.PlannedStopTimeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -18,6 +20,7 @@ import java.util.List;
 public class PlannedStopTimeServiceImpl implements PlannedStopTimeService {
 
     private final PlannedStopTimeRepository plannedStopTimeRepository;
+    private final StopRepository stopRepository;
 
     @Override
     public PlannedStopTimeResponse create(CreatePlannedStopTimeRequest request) {
@@ -174,5 +177,64 @@ public class PlannedStopTimeServiceImpl implements PlannedStopTimeService {
 
         return list.stream().map(this::toResponse).toList();
     }
+
+
+    public List<PlannedStopTimeResponse> createTripStops(CreateTripStopsRequest req) {
+        // validations basiques
+        if (req.getLineId() == null || req.getRouteId() == null || req.getServiceDate() == null
+                || req.getTripCode() == null || req.getTripCode().isBlank()
+                || req.getStops() == null || req.getStops().isEmpty()) {
+            throw new IllegalArgumentException("lineId, routeId, tripCode, serviceDate, stops sont obligatoires");
+        }
+
+        // 1) vérifier stopIds existent
+        // (simple: StopRepository.existsById pour chaque stopId)
+        for (var s : req.getStops()) {
+            if (s.getStopId() == null || s.getSequence() == null || s.getArrivalTime() == null) {
+                throw new IllegalArgumentException("Chaque stop doit avoir stopId, sequence, arrivalTime");
+            }
+            if (!stopRepository.existsById(s.getStopId())) {
+                throw new IllegalArgumentException("StopId invalide: " + s.getStopId());
+            }
+        }
+
+        // 2) OPTIONAL: supprimer les anciens stops du même trip/date si tu veux “replace”
+        // plannedStopTimeRepository.deleteByTripCodeAndServiceDate(req.getTripCode(), req.getServiceDate());
+
+        // 3) créer plusieurs rows
+        List<PlannedStopTime> entities = req.getStops().stream().map(s ->
+                PlannedStopTime.builder()
+                        .lineId(req.getLineId())
+                        .routeId(req.getRouteId())
+                        .tripCode(req.getTripCode())
+                        .stopId(s.getStopId())
+                        .serviceDate(req.getServiceDate())
+                        .plannedArrivalTime(s.getArrivalTime())
+                        .plannedDepartureTime(s.getDepartureTime())
+                        .stopSequence(s.getSequence())
+                        .active(s.getActive() == null ? true : s.getActive())
+                        .build()
+        ).toList();
+
+        List<PlannedStopTime> saved = plannedStopTimeRepository.saveAll(entities);
+
+        // 4) retourner responses
+        return saved.stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    public List<PlannedStopTimeResponse> getTripStops(String tripCode, LocalDate date) {
+        if (tripCode == null || tripCode.isBlank() || date == null) {
+            throw new IllegalArgumentException("tripCode et date sont obligatoires");
+        }
+
+        return plannedStopTimeRepository
+                .findByTripCodeAndServiceDateOrderByStopSequenceAsc(tripCode, date)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+
 
 }

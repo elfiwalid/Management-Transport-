@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "vehicles")
@@ -64,6 +65,22 @@ public class Vehicle {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @Column(name="current_trip_code", length=100)
+    private String currentTripCode;
+
+    @Column(name="current_service_date")
+    private LocalDate currentServiceDate;
+
+    @Column(name="trip_started_at")
+    private Instant tripStartedAt;
+
+    @Column(name="trip_status", length=20)
+    private String tripStatus; // IDLE / RUNNING / FINISHED
+
+    @Column(name="delay_minutes")
+    private Integer delayMinutes;
+
 
 
 }

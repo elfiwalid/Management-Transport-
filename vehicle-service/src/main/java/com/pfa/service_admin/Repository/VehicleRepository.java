@@ -10,5 +10,6 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
 
     Optional<Vehicle> findByCode(String code);
 
+    List<Vehicle> findByTripStatusIgnoreCase(String tripStatus);
     List<Vehicle> findByLineId(Long lineId);
 }

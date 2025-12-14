@@ -1,8 +1,9 @@
 package com.pfa.service_assurance.Controller;
 
-import com.pfa.service_assurance.DTO.CreatePlannedStopTimeRequest;
-import com.pfa.service_assurance.DTO.PlannedStopTimeResponse;
+import com.pfa.service_assurance.DTO.*;
 import com.pfa.service_assurance.Service.PlannedStopTimeService;
+import com.pfa.service_assurance.Service.StopService;
+import com.pfa.service_assurance.Service.impl.PlannedStopTimeServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import java.util.List;
 public class PlannedStopTimeController {
 
     private final PlannedStopTimeService plannedStopTimeService;
+    private final StopService stopService;
 
     // Créer un horaire planifié
     @PostMapping
@@ -140,6 +142,50 @@ public class PlannedStopTimeController {
         return ResponseEntity.ok(
                 plannedStopTimeService.getNextDepartures(lineId, stopId, date, fromTime, limit)
         );
+    }
+
+
+
+    @PostMapping("/stops")
+    public ResponseEntity<StopResponse> create(@RequestBody CreateStopRequest req) {
+        return ResponseEntity.ok(stopService.create(req));
+    }
+
+    @GetMapping("/stops/{id}")
+    public ResponseEntity<StopResponse> get(@PathVariable Long id) {
+        return ResponseEntity.ok(stopService.getById(id));
+    }
+
+    @GetMapping("/stops")
+    public ResponseEntity<List<StopResponse>> getAll() {
+        return ResponseEntity.ok(stopService.getAll());
+    }
+
+    @PutMapping("/stops/{id}")
+    public ResponseEntity<StopResponse> update(@PathVariable Long id, @RequestBody CreateStopRequest req) {
+        return ResponseEntity.ok(stopService.update(id, req));
+    }
+
+    @DeleteMapping("/stops/{id}")
+    public ResponseEntity<Void> deleteStops(@PathVariable Long id) {
+        stopService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+
+    @PostMapping("/trip-stops")
+    public ResponseEntity<List<PlannedStopTimeResponse>> createTripStops(
+            @RequestBody CreateTripStopsRequest req
+    ) {
+        return ResponseEntity.ok(plannedStopTimeService.createTripStops(req));
+    }
+
+    @GetMapping("/trip-stops")
+    public ResponseEntity<List<PlannedStopTimeResponse>> getTripStops(
+            @RequestParam String tripCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    ) {
+        return ResponseEntity.ok(plannedStopTimeService.getTripStops(tripCode, date));
     }
 
 

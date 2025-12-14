@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 public interface AlertRepository extends JpaRepository<Alert, Long> {
 
@@ -27,4 +28,13 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     // ✅ utile si tu veux filtrer uniquement par date (optionnel)
     List<Alert> findByCreatedAtBetween(Instant from, Instant to);
+    // ✅ NEW: retrouver une alerte DELAY déjà ouverte
+    Optional<Alert> findFirstByTypeAndStatusAndVehicleIdAndLineIdOrderByCreatedAtDesc(
+            AlertType type, AlertStatus status, Long vehicleId, Long lineId
+    );
+
+    // ✅ NEW: retrouver NO_SIGNAL ouvert
+    Optional<Alert> findFirstByTypeAndStatusAndVehicleIdOrderByCreatedAtDesc(
+            AlertType type, AlertStatus status, Long vehicleId
+    );
 }

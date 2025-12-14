@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Data
 @Builder
@@ -26,7 +27,12 @@ public class VehicleResponse {
     private Instant lastPositionTime;
     private SignalState signalState;
     private VehicleStatus status;
-
+    private String currentTripCode;
+    private LocalDate currentServiceDate;
+    private Instant tripStartedAt;
+    private String tripStatus; // IDLE / RUNNING / FINISHED
     private Instant createdAt;
     private Instant updatedAt;
+    private Integer delayMinutes;
+
 }

@@ -35,4 +35,9 @@ public interface PlannedStopTimeRepository extends JpaRepository<PlannedStopTime
     List<PlannedStopTime> findByLineIdAndStopIdAndServiceDateAndPlannedArrivalTimeGreaterThanEqualOrderByPlannedArrivalTimeAsc(
             Long lineId, Long stopId, LocalDate date, LocalTime fromTime, Pageable pageable
     );
+
+    void deleteByTripCodeAndServiceDate(String tripCode, LocalDate serviceDate);
+
+    List<PlannedStopTime> findByTripCodeAndServiceDateOrderByStopSequenceAsc(String tripCode, LocalDate serviceDate);
+
 }

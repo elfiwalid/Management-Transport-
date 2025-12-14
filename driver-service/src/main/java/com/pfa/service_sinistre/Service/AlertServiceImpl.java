@@ -9,11 +9,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
+import org.springframework.scheduling.annotation.Scheduled;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -22,6 +24,7 @@ import java.util.stream.Collectors;
 public class AlertServiceImpl implements AlertService {
 
     private final AlertRepository alertRepository;
+    private final ConcurrentMap<Long, Instant> lastSeenByVehicle = new ConcurrentHashMap<>();
 
     private Instant toInstant(LocalDateTime dt) {
         return dt == null ? null : dt.toInstant(ZoneOffset.UTC);
@@ -250,23 +253,63 @@ public class AlertServiceImpl implements AlertService {
     //   Kafka event
     // =========================
 
+
+
     @Override
     public void handleVehiclePositionEvent(VehiclePositionEvent event) {
-        log.info("💡 Traitement métier de l'événement véhicule : {}", event);
+        lastSeenByVehicle.put(event.getVehicleId(), Instant.now());
 
-        if (event.getDelayMinutes() == null) {
-            log.info("Aucun delayMinutes, aucune alerte générée.");
+        log.info("💡 Traitement Kafka vehicle.positions : {}", event);
+
+        if (event.getVehicleId() == null) return;
+
+        Integer delayObj = event.getDelayMinutes();
+        if (delayObj == null) {
+            log.info("delayMinutes null => rien");
             return;
         }
 
-        int delay = event.getDelayMinutes();
+        int delay = delayObj;
+
+        // ✅ Si retard < 5 => on peut fermer une alerte DELAY ouverte (optionnel)
         if (delay < 5) {
-            log.info("Retard {} min < 5 min, pas d'alerte.", delay);
+            closeOpenDelayIfExists(event.getVehicleId(), event.getLineId());
             return;
         }
 
         AlertSeverity sev = delay < 10 ? AlertSeverity.WARNING : AlertSeverity.CRITICAL;
 
+        // ✅ 1) est-ce qu'il existe déjà une alerte DELAY OPEN pour ce véhicule+ligne ?
+        Optional<Alert> existingOpt = alertRepository
+                .findFirstByTypeAndStatusAndVehicleIdAndLineIdOrderByCreatedAtDesc(
+                        AlertType.DELAY, AlertStatus.OPEN, event.getVehicleId(), event.getLineId()
+                );
+
+        if (existingOpt.isPresent()) {
+            Alert existing = existingOpt.get();
+
+            // ✅ update seulement si le retard a changé (ou a augmenté)
+            Integer oldDelay = existing.getDelayMinutes();
+            if (oldDelay == null || delay != oldDelay) {
+
+                existing.setDelayMinutes(delay);
+                existing.setSeverity(sev);
+                existing.setTitle("Retard détecté");
+                existing.setDetails("Véhicule " + event.getVehicleId()
+                        + " retard " + delay + " min sur ligne " + event.getLineId());
+
+                // (optionnel) update stopId si tu l’as plus tard
+                // existing.setStopId(...)
+
+                alertRepository.save(existing);
+                log.info("🔁 Alerte DELAY mise à jour (id={}) => delay={}min", existing.getId(), delay);
+            } else {
+                log.info("⏭️ Même delay ({}) => pas de mise à jour (anti-spam)", delay);
+            }
+            return;
+        }
+
+        // ✅ 2) Sinon: créer une nouvelle alerte DELAY
         Alert alert = Alert.builder()
                 .type(AlertType.DELAY)
                 .severity(sev)
@@ -274,13 +317,73 @@ public class AlertServiceImpl implements AlertService {
                 .vehicleId(event.getVehicleId())
                 .lineId(event.getLineId())
                 .delayMinutes(delay)
-                .title("Retard de " + delay + " min sur la ligne " + event.getLineId())
-                .details("Le véhicule " + event.getVehicleId() + " a un retard estimé de " + delay
-                        + " minutes sur la ligne " + event.getLineId() + ".")
+                .title("Retard détecté")
+                .details("Véhicule " + event.getVehicleId()
+                        + " retard " + delay + " min sur ligne " + event.getLineId())
                 .createdAt(Instant.now())
                 .build();
 
         alertRepository.save(alert);
-        log.info("🚨 Alerte créée : {}", alert);
+        log.info("🚨 Nouvelle alerte DELAY créée (id={})", alert.getId());
     }
+
+    private void closeOpenDelayIfExists(Long vehicleId, Long lineId) {
+        if (vehicleId == null || lineId == null) return;
+
+        Optional<Alert> existingOpt = alertRepository
+                .findFirstByTypeAndStatusAndVehicleIdAndLineIdOrderByCreatedAtDesc(
+                        AlertType.DELAY, AlertStatus.OPEN, vehicleId, lineId
+                );
+
+        existingOpt.ifPresent(a -> {
+            a.setStatus(AlertStatus.CLOSED);
+            a.setDetails((a.getDetails() == null ? "" : a.getDetails() + " | ")
+                    + "Retard redevenu normal (<5min). Fermeture auto.");
+            alertRepository.save(a);
+            log.info("✅ Alerte DELAY fermée automatiquement (id={})", a.getId());
+        });
+    }
+
+
+    @Scheduled(fixedRate = 60_000) // chaque 1 minute
+    public void detectNoSignal() {
+        Instant now = Instant.now();
+
+        // seuil : 25 minutes (tu peux le changer)
+        long thresholdSeconds = 25 * 60;
+
+        for (Map.Entry<Long, Instant> e : lastSeenByVehicle.entrySet()) {
+            Long vehicleId = e.getKey();
+            Instant last = e.getValue();
+            if (last == null) continue;
+
+            long diff = now.getEpochSecond() - last.getEpochSecond();
+            if (diff > thresholdSeconds) {
+                createNoSignalOnce(vehicleId);
+            }
+        }
+    }
+
+    private void createNoSignalOnce(Long vehicleId) {
+        // ne pas spammer: si déjà OPEN, ne rien faire
+        Optional<Alert> existing = alertRepository
+                .findFirstByTypeAndStatusAndVehicleIdOrderByCreatedAtDesc(
+                        AlertType.NO_SIGNAL, AlertStatus.OPEN, vehicleId
+                );
+        if (existing.isPresent()) return;
+
+        Alert alert = Alert.builder()
+                .type(AlertType.NO_SIGNAL)
+                .severity(AlertSeverity.WARNING)
+                .status(AlertStatus.OPEN)
+                .vehicleId(vehicleId)
+                .title("Perte de signal")
+                .details("Aucun message position reçu depuis > 25 min.")
+                .createdAt(Instant.now())
+                .build();
+
+        alertRepository.save(alert);
+        log.info("📡 Alerte NO_SIGNAL créée pour vehicle {}", vehicleId);
+    }
+
 }

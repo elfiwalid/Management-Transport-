@@ -1,8 +1,7 @@
 package com.pfa.service_admin.Controller;
 
-import com.pfa.service_admin.DTO.CreateVehicleRequest;
-import com.pfa.service_admin.DTO.UpdatePositionRequest;
-import com.pfa.service_admin.DTO.VehicleResponse;
+import com.pfa.service_admin.DTO.*;
+import com.pfa.service_admin.Entity.Vehicle;
 import com.pfa.service_admin.Service.VehicleService;
 
 import lombok.RequiredArgsConstructor;
@@ -43,5 +42,26 @@ public class VehicleController {
         return ResponseEntity.ok(vehicleService.updatePosition(id, request));
     }
 
+
+    @PostMapping("/{id}/simulate/start")
+    public ResponseEntity<String> startSimulation(@PathVariable Long id,
+                                                  @RequestBody StartTripSimulationRequest req) {
+        vehicleService.startTripSimulation(id, req);
+        return ResponseEntity.ok("Simulation started for vehicle " + id);
+    }
+
+    @PostMapping("/{id}/simulate/stop")
+    public ResponseEntity<String> stopSimulation(@PathVariable Long id) {
+        vehicleService.stopTripSimulation(id);
+        return ResponseEntity.ok("Simulation stopped for vehicle " + id);
+    }
+
+    @PostMapping("/{id}/start-trip")
+    public ResponseEntity<Vehicle> startTrip(
+            @PathVariable Long id,
+            @RequestBody StartTripRequest req
+    ) {
+        return ResponseEntity.ok(vehicleService.startTrip(id, req));
+    }
 
 }
