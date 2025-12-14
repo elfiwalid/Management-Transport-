@@ -14,7 +14,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/vehicles")
 @RequiredArgsConstructor
-@CrossOrigin
 public class VehicleController {
 
     private final VehicleService vehicleService;
